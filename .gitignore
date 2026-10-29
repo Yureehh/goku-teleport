@@ -1,3 +1,7 @@
 .venv/
 __pycache__/
 .DS_Store
+teleport.wav
+backgrounds/
+teleport.mp3
+teleport.m4a
