@@ -1,0 +1,36 @@
+name: test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python test_gesture.py
+      # No webcam or speakers on CI runners: this only proves the models load and the
+      # platform-specific sound and camera code runs without blowing up.
+      - name: smoke
+        run: |
+          python -c "
+          import numpy as np, mediapipe as mp, goku
+          from mediapipe.tasks.python import BaseOptions, vision
+          m = goku.MODELS
+          v = vision.RunningMode.VIDEO
+          img = mp.Image(image_format=mp.ImageFormat.SRGB, data=np.zeros((360, 640, 3), np.uint8))
+          vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(base_options=BaseOptions(model_asset_path=str(m / 'hand_landmarker.task')), running_mode=v)).detect_for_video(img, 1)
+          vision.FaceDetector.create_from_options(vision.FaceDetectorOptions(base_options=BaseOptions(model_asset_path=str(m / 'blaze_face_short_range.tflite')), running_mode=v)).detect_for_video(img, 1)
+          vision.ImageSegmenter.create_from_options(vision.ImageSegmenterOptions(base_options=BaseOptions(model_asset_path=str(m / 'selfie_segmenter.tflite')), running_mode=v, output_confidence_masks=True)).segment_for_video(img, 1)
+          goku.make_sound(goku.SOUND)
+          goku.play_sound()
+          goku.open_camera(0).release()
+          print('smoke ok')
+          "

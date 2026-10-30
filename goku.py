@@ -11,7 +11,9 @@ import argparse
 import contextlib
 import math
 import os
+import shutil
 import subprocess
+import sys
 import time
 import wave
 from pathlib import Path
@@ -121,7 +123,7 @@ def effect(live, bg, t):
     warped = cv2.remap(live, gx + wave, gy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
     a = t * t * (3 - 2 * t)  # smoothstep: no hard jump at start/end of the blend
     out = cv2.addWeighted(warped, 1 - a, bg, a, 0)
-    # ponytail: distorts the whole frame; mask the person (|live - bg|) if the room wobble bothers you
+    # Warps the whole frame, room included. Masking it to just the person would look nicer.
     # streaks fixed per run (not per frame), so they glow in and out instead of strobing
     streaks = np.zeros(w, np.float32)
     rng = np.random.default_rng(7)
@@ -153,12 +155,23 @@ def make_sound(path):
 
 
 def play_sound():
-    # ponytail: macOS afplay, plays on your speakers; others hear it only if your mic picks it up
-    # your own clip wins over the generated one
+    """Plays on your speakers; the call hears it only if your mic picks it up."""
     own = [f for f in (SOUND.with_suffix(e) for e in (".mp3", ".m4a")) if f.exists()]
-    subprocess.Popen(["afplay", str(own[0] if own else SOUND)])
+    path = own[0] if own else SOUND  # your own clip wins over the generated one
+    if sys.platform == "darwin":
+        subprocess.Popen(["afplay", str(path)])
+    elif sys.platform == "win32":
+        import ctypes  # MCI ships with Windows and plays both wav and mp3, no installs
+        mci = ctypes.windll.winmm.mciSendStringW
+        mci("close teleport", None, 0, None)
+        mci(f'open "{path}" type mpegvideo alias teleport', None, 0, None)
+        mci("play teleport", None, 0, None)
+    elif shutil.which("paplay"):
+        subprocess.Popen(["paplay", str(path)])
 
 
+CAM_HELP = ("Check that the app running Python has camera access (macOS: Privacy & Security -> Camera; "
+                   "Windows: Settings -> Privacy -> Camera) and that nothing else is using the camera.")
 BG_EXT = {".png", ".jpg", ".jpeg", ".mp4", ".mov"}
 
 
@@ -172,22 +185,23 @@ def load_bg(path, size):
             if not ok:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ok, f = cap.read()
-            return cv2.resize(f, size)  # ponytail: plays at our loop rate, not the video's fps
+            return cv2.resize(f, size)  # one video frame per camera frame, so speed follows our fps
         if not cap.isOpened():
             raise SystemExit(f"Can't open background video: {path}")
         return next_frame
     pic = cv2.imread(str(path))
     if pic is None:
         raise SystemExit(f"Can't read background image: {path}")
-    pic = cv2.resize(pic, size)  # ponytail: stretches non-16:9 images; crop if it bothers you
+    pic = cv2.resize(pic, size)  # non-16:9 images get stretched
     return lambda: pic
 
 
 @contextlib.contextmanager
 def quiet_stderr():
     """MediaPipe's C++ logs ignore env vars; mute fd 2 while models load."""
-    saved = os.dup(2)
-    os.dup2(os.open(os.devnull, os.O_WRONLY), 2)
+    saved, null = os.dup(2), os.open(os.devnull, os.O_WRONLY)
+    os.dup2(null, 2)
+    os.close(null)
     try:
         yield
     finally:
@@ -202,10 +216,20 @@ def window_closed(name):
         return True
 
 
+def open_camera(index):
+    if sys.platform != "win32":
+        return cv2.VideoCapture(index)
+    # The default Windows backend (MSMF) can take 10+ s to open; DirectShow is instant.
+    # MJPG because most USB webcams only do 720p at 30 fps compressed.
+    cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    return cap
+
+
 def show_cams():
     shots = []
     for i in range(5):
-        cap = cv2.VideoCapture(i)
+        cap = open_camera(i)
         ok, f = cap.read()
         cap.release()
         if ok:
@@ -213,7 +237,7 @@ def show_cams():
             cv2.putText(f, f"camera {i}", (10, 35), 0, 1.2, (0, 255, 0), 3)
             shots.append(f)
     if not shots:
-        raise SystemExit("No cameras readable: check camera permission for your terminal.")
+        raise SystemExit("No cameras readable. " + CAM_HELP)
     name = "pick a camera, then: python goku.py N   (any key closes)"
     cv2.imshow(name, np.hstack(shots))
     while cv2.waitKey(100) == -1 and not window_closed(name):
@@ -241,13 +265,13 @@ def main(camera, bg_image, record=None):
             base_options=BaseOptions(model_asset_path=str(MODELS / "blaze_face_short_range.tflite")),
             running_mode=video, min_detection_confidence=MIN_CONF))
 
-    cap = cv2.VideoCapture(camera)
+    cap = open_camera(camera)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     cap.set(cv2.CAP_PROP_FPS, 30)
     ok, frame = cap.read()
     if not ok:
-        raise SystemExit("No webcam frame: check camera permission for your terminal.")
+        raise SystemExit(f"Camera {camera} gave no picture. " + CAM_HELP)
     H, W = frame.shape[:2]
     try:
         cam = pyvirtualcam.Camera(W, H, 30, fmt=pyvirtualcam.PixelFormat.BGR)
@@ -257,7 +281,7 @@ def main(camera, bg_image, record=None):
         print(f"No virtual camera ({e}). Running debug window only.")
 
     rec = None
-    if record:  # ponytail: fixed 20 fps container; real rate is printed on exit for retiming
+    if record:  # written at a nominal 20 fps; the real rate is printed on exit
         mp4 = cv2.VideoWriter_fourcc(*"mp4v")
         rec = [cv2.VideoWriter(f"{record}-clean.mp4", mp4, 20, (W, H)),
                cv2.VideoWriter(f"{record}-debug.mp4", mp4, 20, (DETECT_W, DETECT_W * H // W))]
@@ -306,7 +330,7 @@ def main(camera, bg_image, record=None):
             b = max(det, key=lambda d: d.bounding_box.width).bounding_box
             kp = max(det, key=lambda d: d.bounding_box.width).keypoints
             eye_y = (kp[0].y + kp[1].y) / 2 * dh
-            face = (b.origin_x, b.origin_y, b.width, eye_y)  # ponytail: keeps last face when hand hides it
+            face = (b.origin_x, b.origin_y, b.width, eye_y)  # kept when the hand hides the face
         hr = hands.detect_for_video(img, ts)
         hand_pts = [[(l.x * DETECT_W, l.y * dh) for l in hl] for hl in hr.hand_landmarks]
         hand_3d = [[(l.x, l.y, l.z) for l in hl] for hl in hr.hand_world_landmarks]
