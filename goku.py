@@ -220,7 +220,7 @@ def show_cams():
         pass
 
 
-def main(camera, bg_image):
+def main(camera, bg_image, record=None):
     import mediapipe as mp
     import pyvirtualcam
     from mediapipe.tasks.python import BaseOptions, vision
@@ -255,6 +255,14 @@ def main(camera, bg_image):
     except RuntimeError as e:
         cam = None
         print(f"No virtual camera ({e}). Running debug window only.")
+
+    rec = None
+    if record:  # ponytail: fixed 20 fps container; real rate is printed on exit for retiming
+        mp4 = cv2.VideoWriter_fourcc(*"mp4v")
+        rec = [cv2.VideoWriter(f"{record}-clean.mp4", mp4, 20, (W, H)),
+               cv2.VideoWriter(f"{record}-debug.mp4", mp4, 20, (DETECT_W, DETECT_W * H // W))]
+        rec_n, rec_t = 0, time.monotonic()
+        print(f"Recording to {record}-clean.mp4 / {record}-debug.mp4: quit with Q or the red button to save")
 
     arm = GestureArm()
     bg = None
@@ -364,9 +372,18 @@ def main(camera, bg_image):
         cv2.rectangle(dbg, (10, dh - 20), (10 + int(200 * arm.progress(now)), dh - 10), (0, 255, 0), -1)
         cv2.putText(dbg, why, (220, dh - 10), 0, 0.6, (0, 255, 0) if active else (0, 200, 255), 2)
         cv2.imshow("goku debug", dbg)
+        if rec:
+            rec[0].write(out)
+            rec[1].write(dbg)
+            rec_n += 1
         if window_closed("goku debug"):  # red button
             break
 
+    if rec:
+        for r in rec:
+            r.release()
+        secs = time.monotonic() - rec_t
+        print(f"Saved {rec_n} frames over {secs:.1f} s ({rec_n / secs:.1f} fps real)")
     cap.release()
     if cam:
         cam.close()
@@ -379,11 +396,12 @@ if __name__ == "__main__":
     ap.add_argument("--cams", action="store_true", help="show every camera with its number")
     ap.add_argument("--bg", nargs="?", const=str(Path(__file__).parent / "backgrounds"),
                     help="background image/video, or a folder (default: backgrounds/); N cycles")
+    ap.add_argument("--record", metavar="NAME", help="also save NAME-clean.mp4 (what Teams sees) and NAME-debug.mp4")
     args = ap.parse_args()
     if args.cams:
         show_cams()
     else:
         try:
-            main(args.camera, args.bg)
+            main(args.camera, args.bg, args.record)
         except KeyboardInterrupt:
             os._exit(0)  # Ctrl+C: skip MediaPipe's slow cleanup; the OS releases the cameras

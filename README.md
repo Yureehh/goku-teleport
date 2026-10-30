@@ -1,4 +1,17 @@
+<div align="center">
+
 # Goku Teleport
+
+**Leave Teams meetings the way Goku leaves job interviews.**
+
+<a href="https://giphy.com/gifs/goku-VIZi1DWTuZUcw"><img src="https://media.giphy.com/media/VIZi1DWTuZUcw/giphy.gif" width="520" alt="Goku in a suit teleporting out of a job interview"></a>
+
+![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
+![MediaPipe](https://img.shields.io/badge/MediaPipe-hands%20%2B%20face%20%2B%20segmentation-0097A7?logo=google&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-OBS%20Virtual%20Camera-000000?logo=apple&logoColor=white)
+![Runs locally](https://img.shields.io/badge/runs-100%25%20locally-2ea44f)
+
+</div>
 
 Put two fingers on your forehead in a Teams call and vanish, Instant Transmission style. Your coworkers see a quick anime warp and then an empty room. Do it again and you're back, as if nothing happened.
 
@@ -15,7 +28,11 @@ webcam ──► goku.py ──► OBS Virtual Camera ──► Teams
              └─ a few lines of geometry    → "is that the Goku pose?"
 ```
 
-There's no custom ML here. Three pre-trained Google models run locally, and the gesture is plain geometry on top of them:
+There's no custom ML here. Three pre-trained Google models run locally, and the gesture is plain geometry on top of them.
+
+<img align="right" src="https://media.giphy.com/media/cW55zyF7dJAf6/giphy.gif" width="260" alt="Super Saiyan Goku doing Instant Transmission">
+
+The reference pose is on the right. In geometry:
 
 1. Index and middle finger straight (checked in 3D, so fingers pointing at the camera still count).
 2. Ring finger and pinky folded.
@@ -24,6 +41,7 @@ There's no custom ML here. Three pre-trained Google models run locally, and the 
 5. All of the above held for 0.5 s.
 
 Every distance is relative to your face width, so it works whether you're leaning in or slouching back.
+<br clear="right">
 
 Once it fires, it **locks** until you drop your hand. Holding the pose doesn't strobe you in and out of existence. A single dropped tracking frame doesn't reset the countdown either, because MediaPipe blinks sometimes.
 
@@ -69,6 +87,8 @@ Then in Teams: Settings → Devices → Camera → **OBS Virtual Camera**, backg
 | N | next background (`--bg` mode) |
 | Q / red button / Ctrl+C | quit |
 
+Add `--record demo` to also save `demo-clean.mp4` (what Teams sees) and `demo-debug.mp4` (with landmarks), for bragging purposes.
+
 Keys only work when the "goku debug" window has focus. That window shows exactly what Teams gets, plus your hand landmarks, the forehead zone, a hold progress bar, and **why the gesture isn't firing** ("ring not folded", "not on forehead", ...). None of the overlay reaches Teams.
 
 ### Backgrounds
@@ -106,4 +126,4 @@ These are plain asserts, with no framework. They check that holding fires exactl
 
 ## Credits
 
-Hand, face and segmentation models: [Google MediaPipe](https://ai.google.dev/edge/mediapipe) (Apache 2.0). Virtual camera: [pyvirtualcam](https://github.com/letmaik/pyvirtualcam) + [OBS](https://obsproject.com). The idea: Goku, who never once said goodbye before leaving.
+Hand, face and segmentation models: [Google MediaPipe](https://ai.google.dev/edge/mediapipe) (Apache 2.0). Virtual camera: [pyvirtualcam](https://github.com/letmaik/pyvirtualcam) + [OBS](https://obsproject.com). The GIFs are embedded from GIPHY and aren't stored in this repo; Dragon Ball belongs to Toei Animation and Bird Studio. The idea: Goku, who never once said goodbye before leaving.
