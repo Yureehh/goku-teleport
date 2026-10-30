@@ -1,6 +1,6 @@
 <div align="center">
 
-# Goku Teleport
+# Sorry, They Need Me
 
 **Leave Teams meetings the way Goku leaves job interviews.**
 
@@ -106,23 +106,6 @@ The folder is git-ignored. Those images aren't mine to redistribute.
 On first run the app generates a `teleport.wav`: a rising zip with a puff of air. It's fine. If you have a better clip, save it as `teleport.mp3` or `teleport.m4a` next to `goku.py` and it wins. Those are git-ignored too, for the same copyright reason.
 
 The sound plays on **your speakers**. Others hear it only if your mic picks it up. Routing it straight into the call needs a virtual audio device like BlackHole, which I didn't set up.
-
-## Troubleshooting
-
-- **The app opened my iPhone camera.** That's Continuity Camera grabbing index 0. Run `--cams`, then pass the right number.
-- **Balloons and fireworks appear when I do the gesture.** macOS Reactions think your two fingers are a peace sign. Menu bar camera icon → Video Effects → turn off Reactions (and Center Stage, Portrait, Background while you're there).
-- **Flickering in Teams.** Teams background effects are on. Turn them off.
-- **"No webcam frame: check camera permission".** Whatever app launched Python needs camera access. Running it from an IDE or another app's terminal means *that* app needs the permission.
-- **The gesture won't fire.** Look at the debug window's bottom line and adjust the matching knob at the top of `goku.py` (`ZONE_ABOVE`, `TIPS_TOGETHER`, `HOLD_S`, ...).
-- **When I vanish, the room comes out slightly brighter or darker than the live feed.** The camera's auto-exposure drifted since you pressed B. Press B again.
-
-## Tests
-
-```bash
-.venv/bin/python test_gesture.py
-```
-
-These are plain asserts, with no framework. They check that holding fires exactly once, that release re-arms, that a dropped frame doesn't reset the hold, that the geometry accepts the pose and rejects near-misses, and that the effect starts and ends on the right frames.
 
 ## Credits
 

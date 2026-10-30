@@ -1,4 +1,4 @@
-"""Goku Teleport: two fingers on your forehead -> you vanish from Teams via OBS Virtual Camera.
+"""Sorry, They Need Me: two fingers on your forehead -> you vanish from Teams via OBS Virtual Camera.
 
 Usage: python goku.py --cams              (shows every camera with its number)
        python goku.py N                   (uses camera N, default 0; B captures the empty room)
